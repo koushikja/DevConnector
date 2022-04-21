@@ -1,7 +1,12 @@
 const express = require('express');
+const request = require('request');
+const config = require('config');
 const router = express.Router();
 const auth = require('../../middleware/auth');
-const { check, validationResult } = require('express-validator');
+const {
+    check,
+    validationResult
+} = require('express-validator');
 
 const Profile = require('../../models/Profle');
 const User = require('../../models/User');
@@ -19,7 +24,9 @@ router.get('/me', auth, async (req, res) => {
         if (!profile) {
             return res
                 .status(400)
-                .json({ msg: 'There is no profile for this user' });
+                .json({
+                    msg: 'There is no profile for this user'
+                });
         }
         res.json(profile);
     } catch (err) {
@@ -44,7 +51,9 @@ router.post(
     async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
+            return res.status(400).json({
+                errors: errors.array()
+            });
         }
 
         const {
@@ -86,15 +95,19 @@ router.post(
         if (instagram) profileFields.social.instagram = instagram;
 
         try {
-            let profile = await Profile.findOne({ user: req.user.id });
+            let profile = await Profile.findOne({
+                user: req.user.id
+            });
 
             if (profile) {
                 //update
-                profile = await Profile.findOneAndUpdate(
-                    { user: req.user.id },
-                    { $set: profileFields },
-                    { new: true }
-                );
+                profile = await Profile.findOneAndUpdate({
+                    user: req.user.id
+                }, {
+                    $set: profileFields
+                }, {
+                    new: true
+                });
 
                 return res.json(profile);
             }
@@ -137,13 +150,17 @@ router.get('/user/:user_id', async (req, res) => {
             user: req.params.user_id,
         }).populate('user', ['name', 'avatar']);
 
-        if (!profile) return res.status(400).json({ msg: 'Profile Not Found' });
+        if (!profile) return res.status(400).json({
+            msg: 'Profile Not Found'
+        });
 
         res.json(profile);
     } catch (err) {
         console.error(err.message);
         if (err.kind == 'ObjectId') {
-            return res.status(400).json({ msg: 'Profile Not Found' });
+            return res.status(400).json({
+                msg: 'Profile Not Found'
+            });
         }
         res.status(500).send('Server Error');
     }
@@ -158,11 +175,17 @@ router.delete('/', auth, async (req, res) => {
         // @todo - remove users posts
 
         // Remove profile
-        await Profile.findOneAndRemove({ user: req.user.id });
+        await Profile.findOneAndRemove({
+            user: req.user.id
+        });
         // Remove user
-        await User.findOneAndRemove({ _id: req.user.id });
+        await User.findOneAndRemove({
+            _id: req.user.id
+        });
 
-        res.json({ msg: 'User Deleted Permanently' });
+        res.json({
+            msg: 'User Deleted Permanently'
+        });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
@@ -185,7 +208,9 @@ router.put(
     async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
+            return res.status(400).json({
+                errors: errors.array()
+            });
         }
 
         const {
@@ -209,7 +234,9 @@ router.put(
         };
 
         try {
-            const profile = await Profile.findOne({ user: req.user.id });
+            const profile = await Profile.findOne({
+                user: req.user.id
+            });
 
             profile.experience.unshift(newExp);
             await profile.save();
@@ -221,5 +248,35 @@ router.put(
         }
     }
 );
+
+//@route    GET api/profile/github/:username
+//@desc     Get user repos from Github
+//@access   Public
+
+router.get('/github/:username', (req, res) => {
+    try {
+        const options = {
+            uri: `https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc&client_id=${config.get('githubClientId')}&client_secret=${config.get('githubSecret')}`,
+            method: 'GET',
+            headers: {
+                'user-agent': 'node.js'
+            }
+        };
+
+        request(options, (error,response,body) => {
+            if(error) console.error(error);
+
+            if (response.statusCode !== 200) {
+                return res.status(404).json({msg:'No Github profile found'})
+            }
+            res.json(JSON.parse(body));
+        })
+    } catch (err) {
+        console.log(err.message);
+        res.status(500).send('Server Error');
+    }
+})
+
+
 
 module.exports = router;
